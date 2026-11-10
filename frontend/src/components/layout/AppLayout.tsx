@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Activity, Bell, Boxes, ChevronLeft, ChevronRight, CircleAlert, ClipboardCheck,
   FileClock, LayoutDashboard, LogOut, Menu, Search, ShieldCheck, ShoppingBag,
@@ -30,7 +30,6 @@ export function AppLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const sideNavRef = useRef<HTMLElement>(null)
   const { user, setUser, cart, notify } = useApp()
-  const { pathname } = useLocation()
   const navigate = useNavigate()
   const initials = (user?.name ?? 'Alex Morgan').split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
   const closeMenu = () => setMobileOpen(false)

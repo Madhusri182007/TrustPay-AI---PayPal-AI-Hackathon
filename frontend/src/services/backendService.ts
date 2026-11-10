@@ -11,6 +11,7 @@ import type {
   PurchaseIntent,
   SecurityScanResult,
   Transaction,
+  TransactionDetails,
 } from '../types'
 
 interface BackendCart {
@@ -75,6 +76,10 @@ export async function updateCartProduct(productId: string, quantity: number): Pr
 
 export async function removeCartProduct(productId: string): Promise<void> {
   await api.delete(`/cart/items/${encodeURIComponent(productId)}`)
+}
+
+export async function clearBackendCart(): Promise<void> {
+  await api.delete('/cart/items')
 }
 
 export async function getPlatforms(): Promise<ShoppingPlatform[]> {

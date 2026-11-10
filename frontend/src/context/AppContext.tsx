@@ -127,7 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch((error: unknown) => {
-        console.error('Could not restore the backend session.', getSanitizedErrorMessage(error))
+        console.error('Could not restore the backend session.', getBackendError(error, 'The backend could not confirm the session.'))
         if (active) {
           notify(getBackendError(error, 'Could not restore the backend session. Please sign in again.'), 'error')
           clearAuthToken()

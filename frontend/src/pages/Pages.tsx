@@ -16,14 +16,14 @@ import { DUMMYJSON_PLATFORM_ID, getProduct, getProductCategories, getProductList
 import { calculateCartTotals } from '../services/cartService'
 import { getOrderFingerprint } from '../utils/order'
 import {
-  addCartProduct, approveBackendOrder, clearBackendCart, createBackendOrder,
-  createPayPalOrder, capturePayPalOrder, getAuditEvents, getBackendError,
+  addCartProduct, approveBackendOrder, cancelPayPalOrder, clearBackendCart, createBackendOrder,
+  createPayPalOrder, capturePayPalOrder, getAuditEvents, getBackendError, getTransactionDetails,
   getBackendOrder, getCart, getDashboardSummary, getPlatforms, removeCartProduct, reverifyIntentLock,
   scanUntrustedContent, searchRecommendations,
   updateCartProduct, verifyBackendAudit, verifyBackendOrder,
   type BackendPaymentResult, type ShoppingPlatform,
 } from '../services/backendService'
-import type { AuditEvent, BackendVerificationCheck, Currency, Product, ProductCategory, ProductRecommendation, PurchaseIntent, SecurityScanResult, Transaction } from '../types'
+import type { AuditEvent, BackendVerificationCheck, Currency, Product, ProductCategory, ProductRecommendation, PurchaseIntent, SecurityScanResult, Transaction, TransactionDetails } from '../types'
 
 function PageTitle({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
   return <div className="page-title-row"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1>{description && <p>{description}</p>}</div>{action}</div>
@@ -31,50 +31,6 @@ function PageTitle({ eyebrow, title, description, action }: { eyebrow?: string; 
 
 function ButtonLink({ to, children, variant = 'primary', icon }: { to: string; children: ReactNode; variant?: string; icon?: ReactNode }) {
   return <Link className={`btn ${variant}`} to={to}>{children}{icon}</Link>
-}
-
-function RecommendationPrice({ analysis }: { analysis: ProductMatchAnalysis }) {
-  const currency = analysis.comparisonCurrency
-  const formatConverted = (amount: number | null | undefined) =>
-    amount == null || !currency ? 'Unavailable' : formatMoney(amount, currency)
-
-  const budgetStatus = analysis.budgetMatched === true
-    ? 'Within budget including estimated fees'
-    : analysis.budgetMatched === false
-      ? 'Budget exceeded including estimated fees'
-      : 'Cannot determine; exchange rate or price is unavailable'
-  const recommendationStatus = analysis.status === 'Exchange Rate Unavailable'
-    ? 'Currency Verification Pending'
-    : analysis.status === 'Budget Exceeded'
-      ? 'Budget Exceeded'
-      : analysis.status === 'Specifications Unverified'
-        ? 'Specifications Unverified'
-        : analysis.matchType ?? analysis.status ?? 'Partial Match'
-
-  return (
-    <div className="match-analysis recommendation-price">
-      <b>{recommendationStatus}</b>
-      <div><span>Original catalogue price</span><em>{analysis.cataloguePrice == null ? 'Unavailable' : formatMoney(analysis.cataloguePrice, analysis.catalogueCurrency ?? 'USD')}</em></div>
-      <div><span>Converted catalogue price</span><em>{formatConverted(analysis.convertedPrice)}</em></div>
-      <div><span>Estimated shipping</span><em>{formatConverted(analysis.convertedShipping)}</em></div>
-      <div><span>Estimated tax</span><em>{formatConverted(analysis.convertedTax)}</em></div>
-      <div><span>Comparable total used for budget check</span><em>{formatConverted(analysis.comparableTotal)}</em></div>
-      <div><span>Budget status</span><em>{budgetStatus}</em></div>
-      <div><span>Brand match {analysis.requestedBrand ? `(${analysis.requestedBrand})` : ''}</span><em>{analysis.brandMatchStatus ?? 'Not available'}</em></div>
-      <div><span>Product-name relevance</span><em>{analysis.nameRelevance == null ? 'Not available' : `${Math.round(analysis.nameRelevance * 100)}%`}</em></div>
-      <div><span>Category match</span><em>{analysis.categoryMatched ? 'Matched' : 'Not matched'}</em></div>
-      {analysis.specificationsMatched !== undefined && analysis.specificationsMatched !== null && (
-        <div><span>Specification evidence</span><em>{analysis.specificationsMatched ? 'Mentioned, not independently verified' : 'Not available for verification'}</em></div>
-      )}
-      <div><span>Verification status</span><em>{analysis.verificationStatus ?? 'Not available'}</em></div>
-      {analysis.exchangeRate != null && analysis.exchangeRateDate && (
-        <small>
-          Exchange rate: 1 {analysis.exchangeRateBase} = {analysis.exchangeRate} {analysis.exchangeRateQuote}
-          · dated {analysis.exchangeRateDate}
-        </small>
-      )}
-    </div>
-  )
 }
 
 function ProductTile({ product, matched = false, matchPercent = '96%' }: { product: Product; matched?: boolean; matchPercent?: string }) {
@@ -693,7 +649,7 @@ export function CartPage() {
 }
 
 export function VerificationPage() {
-  const { cart, intent, backendOrder, backendVerification, verifiedFingerprint, setVerified, setBackendOrder, setBackendVerification, replaceCart, notify } = useApp()
+  const { cart, intent, backendOrder, backendVerification, setVerified, setBackendOrder, setBackendVerification, replaceCart, notify } = useApp()
   const navigate = useNavigate()
   const [working, setWorking] = useState(false)
   const [error, setError] = useState('')
@@ -708,13 +664,6 @@ export function VerificationPage() {
   const failed = checks.filter((check) => check.status === 'Failed').length
   const warnings = checks.filter((check) => check.status === 'Warning').length
   const passed = checks.filter((check) => check.status === 'Verified').length
-  const blockingChecks = backendVerification?.checks.filter((check) => check.critical && check.status === 'Failed') ?? []
-  const currentSnapshotVerified = Boolean(
-    cart.length
-    && backendOrder
-    && backendVerification?.status === 'Passed'
-    && verifiedFingerprint === getOrderFingerprint(cart, intent),
-  )
   const score = Math.max(0, Math.round((passed / checks.length) * 100 - warnings * 3 - failed * 20))
   const criticalFailures = backendVerification?.status !== 'Passed'
   const statusIcon = (status: string) => status === 'Verified' ? <CheckCircle2 size={19} /> : status === 'Warning' ? <CircleAlert size={19} /> : status === 'Pending' ? <Clock3 size={19} /> : <ShieldAlert size={19} />
@@ -1007,10 +956,10 @@ export function PaymentPage() {
         } catch (cause) {
           console.warn('Could not reload the captured backend order details.', cause)
         }
-        setPayment({ id: result.paypal_reference, status: result.status })
+        setPayment({ id: result.paypal_reference, status: result.status, paypalOrderId })
         if (result.status === 'COMPLETED') {
           const transaction: Transaction = {
-            id: result.id ?? result.paypal_reference,
+            id: result.id ?? result.paypal_reference ?? result.order_id,
             orderId: result.order_id,
             product: productNames || 'Product details unavailable',
             amount: result.amount,
@@ -1098,6 +1047,7 @@ export function PaymentPage() {
   }
   if (processing && !payment && !paymentError) return <div className="panel api-state"><span className="spinner" /><p>Checking PayPal Sandbox with the backend…</p></div>
   if (payment?.status === 'COMPLETED') {
+    const transactionId = payment.id
     if (receiptDetails) return <PaymentReceipt details={receiptDetails} />
     return <div className="panel payment-result">
       <div className="result-icon success"><CheckCircle2 size={34} /></div>
@@ -1106,10 +1056,10 @@ export function PaymentPage() {
       <p>PayPal confirmed the capture. IntentLock details are retrieved separately from the persisted order.</p>
       {receiptLoading && <div className="receipt-loading"><span className="spinner" /> Loading persisted receipt…</div>}
       {receiptError && <div className="form-error">{receiptError}</div>}
-      {payment.id && <button className="btn btn-primary" onClick={() => {
+      {transactionId && <button className="btn btn-primary" onClick={() => {
         setReceiptLoading(true)
         setReceiptError('')
-        void getTransactionDetails(payment.id)
+        void getTransactionDetails(transactionId)
           .then(setReceiptDetails)
           .catch((cause: unknown) => setReceiptError(getBackendError(cause, 'Transaction receipt could not be loaded.')))
           .finally(() => setReceiptLoading(false))
