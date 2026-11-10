@@ -15,6 +15,8 @@ npm run dev
 
 Set `VITE_API_BASE_URL=http://localhost:8000` in `frontend\.env`. The shared Axios client appends `/api`, applies a timeout, and attaches the signed-in user's JWT. Do not put provider credentials in this file.
 
+For Vercel deployment, set `VITE_API_BASE_URL` to the deployed backend's public origin (for the included Render blueprint, `https://trustpay-ai-backend.onrender.com`) in the project's Environment Variables for the Production environment, then redeploy. If the variable is omitted, production builds use the included Render service URL; local builds continue to use `http://localhost:8000`.
+
 ## Current integrations
 
 - Login, registration, session restoration/logout, shopping intent, DummyJSON product search, recommendations, backend-authoritative cart totals, order verification, approval, PayPal Sandbox, transactions, and audit records use the existing FastAPI endpoints.

@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const configuredApiBase = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/+$/, '')
+const defaultApiBase = import.meta.env.PROD
+  ? 'https://trustpay-ai-backend.onrender.com'
+  : 'http://localhost:8000'
+const configuredApiBase = (import.meta.env.VITE_API_BASE_URL ?? defaultApiBase).replace(/\/+$/, '')
 
 export const api = axios.create({
   baseURL: configuredApiBase.endsWith('/api') ? configuredApiBase : `${configuredApiBase}/api`,
